@@ -1,0 +1,11 @@
+build/
+.deps/
+.vs/
+.vscode/
+*.exe
+*.obj
+*.o
+*.ilk
+*.pdb
+*.log
+*.csv

@@ -1,6 +1,25 @@
-# Ant Simulations (Pygame)
+# Python Simulations (Pygame)
 
-This folder contains multiple standalone Python simulations (e.g. `ant_sim.py`). Each simulation is a plain `*.py` file you can run directly.
+This project contains multiple standalone Python simulations and a root launcher GUI.
+
+## Project structure
+
+```text
+python/
+  sim_launcher.py               # Root launcher GUI
+  configs/
+    launcher_config.json        # Launcher UI config
+  simulations/
+    ant/
+      ant_sim.py                # Ant simulation
+      run.py                    # Entry point used by launcher
+    flight/
+      flight_sim.py             # Flight simulation
+      run.py                    # Entry point used by launcher
+    laser/
+      laser_sim.py              # Laser simulation
+      run.py                    # Entry point used by launcher
+```
 
 ## Prerequisites (Windows)
 
@@ -35,23 +54,27 @@ Notes:
 - `venv`/`.venv` is a project-local virtual environment (keeps installs from breaking your global Python).
 - The `--only-binary :all:` flag avoids building packages from source on Windows.
 
-## Run a simulation
+## Run from launcher
 
-The simulations are just Python files. To run `ant_sim.py`:
+Start the GUI launcher from project root:
 
 ```powershell
 cd "C:\Users\YOUR_NAME\Documents\python\ants_sim"
-.\.venv\Scripts\python.exe .\ant_sim.py
+.\.venv\Scripts\python.exe .\sim_launcher.py
 ```
 
-To run a different simulation file in the same folder, replace the filename:
+## Run a simulation directly
 
 ```powershell
-.\.venv\Scripts\python.exe .\YOUR_SIMULATION.py
+.\.venv\Scripts\python.exe .\simulations\ant\run.py
+.\.venv\Scripts\python.exe .\simulations\flight\run.py
+.\.venv\Scripts\python.exe .\simulations\laser\run.py
 ```
 
-## Adding new simulations
+## Adding new simulations (clean pattern)
 
-- Add a new `*.py` file to this folder.
-- If the new simulation needs extra packages, add them to `requirements.txt` (so everyone can install everything with one command).
+- Create a new folder under `simulations/`, for example `simulations/swarm/`.
+- Add a `run.py` in that folder as the simulation entry point.
+- The launcher auto-discovers simulations by scanning `simulations/*/run.py`.
+- If a new simulation needs extra packages, add them to `requirements.txt`.
 
