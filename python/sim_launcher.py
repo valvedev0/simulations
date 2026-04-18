@@ -1,13 +1,14 @@
+import json
 import os
 import subprocess
 import sys
 import tkinter as tk
-import json
+from pathlib import Path
 from tkinter import messagebox
 
 
 def load_launcher_config(base_dir):
-    config_path = os.path.join(base_dir, "configs", "launcher_config.json")
+    config_path = base_dir / "configs" / "launcher_config.json"
     default_config = {
         "title": "Python Simulation Launcher",
         "subtitle": "Pick a simulation and click Run.",
@@ -27,23 +28,24 @@ def load_launcher_config(base_dir):
 
 def discover_simulations(base_dir):
     sims = []
-    simulations_dir = os.path.join(base_dir, "simulations")
-    if not os.path.isdir(simulations_dir):
+    simulations_dir = base_dir / "simulations"
+    if not simulations_dir.is_dir():
         return sims
 
-    for folder_name in sorted(os.listdir(simulations_dir)):
-        sim_folder = os.path.join(simulations_dir, folder_name)
-        if not os.path.isdir(sim_folder):
+    for sim_folder in sorted(simulations_dir.iterdir()):
+        if not sim_folder.is_dir():
             continue
-        entry_file = os.path.join(sim_folder, "run.py")
-        if not os.path.isfile(entry_file):
+        entry_file = sim_folder / "run.py"
+        if not entry_file.is_file():
             continue
+
+        folder_name = sim_folder.name
         display_name = folder_name.replace("_", " ").title()
         sims.append(
             {
                 "display_name": display_name,
                 "folder_name": folder_name,
-                "entry_file": entry_file,
+                "entry_file": str(entry_file),
             }
         )
     return sims
@@ -52,11 +54,13 @@ def discover_simulations(base_dir):
 class SimLauncherApp:
     def __init__(self, root):
         self.root = root
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.base_dir = Path(__file__).resolve().parent
         self.config = load_launcher_config(self.base_dir)
 
         self.root.title(self.config["title"])
-        self.root.geometry(f"{self.config['window_width']}x{self.config['window_height']}")
+        self.root.geometry(
+            f"{self.config['window_width']}x{self.config['window_height']}"
+        )
         self.root.minsize(540, 360)
 
         self.status_var = tk.StringVar(value="Select a simulation and click Run.")
@@ -69,7 +73,9 @@ class SimLauncherApp:
         container = tk.Frame(self.root, padx=12, pady=12)
         container.pack(fill=tk.BOTH, expand=True)
 
-        title = tk.Label(container, text=self.config["title"], font=("Segoe UI", 14, "bold"))
+        title = tk.Label(
+            container, text=self.config["title"], font=("Segoe UI", 14, "bold")
+        )
         title.pack(anchor="w")
 
         subtitle = tk.Label(
@@ -101,13 +107,19 @@ class SimLauncherApp:
         controls = tk.Frame(container)
         controls.pack(fill=tk.X, pady=(10, 4))
 
-        run_btn = tk.Button(controls, text="Run Selected", command=self.run_selected, width=16)
+        run_btn = tk.Button(
+            controls, text="Run Selected", command=self.run_selected, width=16
+        )
         run_btn.pack(side=tk.LEFT)
 
-        refresh_btn = tk.Button(controls, text="Refresh", command=self.refresh_list, width=12)
+        refresh_btn = tk.Button(
+            controls, text="Refresh", command=self.refresh_list, width=12
+        )
         refresh_btn.pack(side=tk.LEFT, padx=(8, 0))
 
-        quit_btn = tk.Button(controls, text="Close", command=self.root.destroy, width=12)
+        quit_btn = tk.Button(
+            controls, text="Close", command=self.root.destroy, width=12
+        )
         quit_btn.pack(side=tk.RIGHT)
 
         status = tk.Label(
@@ -125,26 +137,31 @@ class SimLauncherApp:
         self.sim_entries = discover_simulations(self.base_dir)
         for sim in self.sim_entries:
             self.listbox.insert(
-                tk.END,
-                f"{sim['display_name']}  ({sim['folder_name']})"
+                tk.END, f"{sim['display_name']}  ({sim['folder_name']})"
             )
 
         if self.sim_entries:
             self.listbox.selection_set(0)
-            self.status_var.set(f"Found {len(self.sim_entries)} simulation(s) in simulations/ folders.")
+            self.status_var.set(
+                f"Found {len(self.sim_entries)} simulation(s) in simulations/ folders."
+            )
         else:
-            self.status_var.set("No runnable simulations found. Add simulations/<name>/run.py")
+            self.status_var.set(
+                "No runnable simulations found. Add simulations/<name>/run.py"
+            )
 
     def run_selected(self):
         selection = self.listbox.curselection()
         if not selection:
-            messagebox.showwarning("No Selection", "Please select a simulation file first.")
+            messagebox.showwarning(
+                "No Selection", "Please select a simulation file first."
+            )
             return
 
         sim = self.sim_entries[selection[0]]
         file_path = sim["entry_file"]
 
-        if not os.path.isfile(file_path):
+        if not Path(file_path).is_file():
             messagebox.showerror("File Missing", f"Cannot find:\n{file_path}")
             self.refresh_list()
             return
@@ -153,7 +170,9 @@ class SimLauncherApp:
             subprocess.Popen([sys.executable, file_path], cwd=self.base_dir)
             self.status_var.set(f"Started: {sim['display_name']}")
         except Exception as exc:
-            messagebox.showerror("Launch Failed", f"Could not run {sim['display_name']}\n\n{exc}")
+            messagebox.showerror(
+                "Launch Failed", f"Could not run {sim['display_name']}\n\n{exc}"
+            )
 
 
 def main():

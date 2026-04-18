@@ -21,54 +21,79 @@ python/
       run.py                    # Entry point used by launcher
 ```
 
-## Prerequisites (Windows)
+## Prerequisites
 
 - Python 3.12+
 - `uv` (recommended for creating the environment and installing dependencies)
+- On Linux, you may need to install `tkinter` for the GUI launcher (e.g., `sudo apt install python3-tk`).
 
 ### Install `uv`
 
-Run in PowerShell:
-
+**Windows (PowerShell):**
 ```powershell
 winget install --id=astral-sh.uv -e
 ```
 
-Verify:
+**Linux/macOS:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-```powershell
+Verify installation:
+```bash
 uv --version
 ```
 
 ## Setup (install dependencies once)
 
-From this folder:
+Navigate to this folder and set up the environment:
 
+**Windows:**
 ```powershell
-cd "C:\Users\YOUR_NAME\Documents\python\ants_sim"
+cd path\to\simulations\python
 uv venv --clear --python 3.12 .venv
 uv pip install -r requirements.txt --only-binary :all:
 ```
 
-Notes:
+**Linux/macOS:**
+```bash
+cd path/to/simulations/python
+uv venv --clear --python 3.12 .venv
+uv pip install -r requirements.txt
+```
+
+*Notes:*
 - `venv`/`.venv` is a project-local virtual environment (keeps installs from breaking your global Python).
-- The `--only-binary :all:` flag avoids building packages from source on Windows.
+- On Windows, the `--only-binary :all:` flag avoids building packages from source.
 
 ## Run from launcher
 
-Start the GUI launcher from project root:
+Start the GUI launcher from the project root:
 
+**Windows:**
 ```powershell
-cd "C:\Users\YOUR_NAME\Documents\python\ants_sim"
-.\.venv\Scripts\python.exe .\sim_launcher.py
+.\.venv\Scripts\python.exe sim_launcher.py
+```
+
+**Linux/macOS:**
+```bash
+./.venv/bin/python sim_launcher.py
 ```
 
 ## Run a simulation directly
 
+**Windows:**
 ```powershell
-.\.venv\Scripts\python.exe .\simulations\ant\run.py
-.\.venv\Scripts\python.exe .\simulations\flight\run.py
-.\.venv\Scripts\python.exe .\simulations\laser\run.py
+.\.venv\Scripts\python.exe simulations\ant\run.py
+.\.venv\Scripts\python.exe simulations\flight\run.py
+.\.venv\Scripts\python.exe simulations\laser\run.py
+```
+
+**Linux/macOS:**
+```bash
+./.venv/bin/python simulations/ant/run.py
+./.venv/bin/python simulations/flight/run.py
+./.venv/bin/python simulations/laser/run.py
 ```
 
 ## Adding new simulations (clean pattern)
