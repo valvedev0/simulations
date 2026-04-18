@@ -5,10 +5,12 @@
 
 std::unique_ptr<Simulation> CreateFlightSimulation();
 std::unique_ptr<Simulation> CreateAntSimulation();
+std::unique_ptr<Simulation> CreateFluidSimulation();
 
 std::vector<SimulationEntry> BuildSimulationRegistry() {
     return {
         {"flight", "Interactive Flight Simulation", "Diagnostics", "Pygame-style flight sim ported to Raylib for direct C++/Python comparison.", &CreateFlightSimulation},
         {"ants", "Ant Foraging Simulation", "Agent Systems", "Ant colony foraging sim with metrics and CSV event records.", &CreateAntSimulation},
+        {"fluid", "Particle Fluid Simulation", "Physics", "Interactive particle-based fluid simulation that reacts to mouse clicks.", &CreateFluidSimulation},
     };
 }
