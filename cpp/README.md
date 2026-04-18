@@ -1,6 +1,6 @@
 # Raylib Scientific Simulations
 
-A small C++ Raylib workspace for building scientific simulations and comparing them with implementations in other languages, such as Python. It uses the MinGW toolchain that ships with the standard Raylib Windows bundle.
+A small C++ Raylib workspace for building scientific simulations and comparing them with implementations in other languages, such as Python.
 
 ## Layout
 
@@ -18,47 +18,61 @@ src/
     ants.cpp           Ant colony foraging diagnostics experiment
 ```
 
-## Build
+## Build (Windows)
 
-From this folder:
+Uses the MinGW toolchain that ships with the standard Raylib Windows bundle. From this folder:
 
 ```powershell
 .\build.ps1
 ```
 
-This builds the launcher and each direct simulation executable.
-
-If Raylib is not installed on the machine, install portable local dependencies first:
+This builds the launcher and each direct simulation executable. If Raylib is not installed, use:
 
 ```powershell
 .\install_deps.ps1
 .\build.ps1
 ```
 
-This downloads Raylib and W64Devkit into `.deps/`. No admin install is required.
-
 Run the GUI launcher:
-
 ```powershell
 .\build\simulations.exe
 ```
 
+## Build (Linux)
+
+### 1. Install Dependencies
+
+You will need `build-essential` and the Raylib development dependencies. On Ubuntu/Debian/Mint:
+
+```bash
+sudo apt update
+sudo apt install build-essential git libasound2-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxcursor-dev libxinerama-dev libwayland-dev libxkbcommon-dev
+```
+
+### 2. Install Raylib
+
+If you haven't installed Raylib yet, follow the [Raylib Wiki](https://github.com/raysan5/raylib/wiki/Working-on-GNU-Linux) to build and install it from source, or use your package manager if a recent version is available.
+
+### 3. Build
+
+Simply run `make` in this folder:
+
+```bash
+make
+```
+
+Run the GUI launcher:
+```bash
+./build/simulations
+```
+
 Run a simulation directly:
-
-```powershell
-.\build\sims\flight.exe
-.\build\sims\ants.exe
+```bash
+./build/sims/flight
+./build/sims/ants
 ```
 
-You can also build or run make targets through the script:
-
-```powershell
-.\build.ps1 list
-.\build.ps1 run-flight
-.\build.ps1 run-ants
-```
-
-Controls:
+## Controls
 
 - `Up` / `Down`: choose in launcher
 - `Enter`: start selected simulation
@@ -76,37 +90,6 @@ Flight controls:
 - `Space`: zero velocity
 - `R`: reset
 - `Esc`: quit direct executable, or return to launcher
-
-Flight diagnostics shown in the window:
-
-- elapsed time, frame count, FPS
-- average frame, update, and render milliseconds
-- position, speed, heading, throttle, autopilot state
-- total distance, waypoint distance, max speed
-- input/event counters for keyboard and mouse
-- in-window controls panel
-- after target reached, click `Continue` to resume from the paused state
-
-The project assumes the standard Raylib Windows bundle is installed at:
-
-```text
-C:\raylib
-```
-
-The build also supports the repo-local `.deps/` installed by `install_deps.ps1`. If your Raylib folder moves, set explicit paths before building:
-
-```powershell
-$env:RAYLIB_INCLUDE = "D:\tools\raylib\include"
-$env:RAYLIB_LIB = "D:\tools\raylib\lib\libraylib.a"
-$env:RAYLIB_TOOLCHAIN_BIN = "D:\tools\w64devkit\bin"
-.\build.ps1
-```
-
-You can also call the bundled make directly:
-
-```powershell
-C:\raylib\w64devkit\bin\mingw32-make.exe
-```
 
 ## Add A Simulation
 
@@ -128,4 +111,15 @@ Example direct target:
 
 ```make
 SIM_IDS := flight my-sim
+```
+
+## Advanced Windows Configuration
+
+The project assumes the standard Raylib Windows bundle is installed at `C:\raylib`. You can set environment variables to override:
+
+```powershell
+$env:RAYLIB_INCLUDE = "D:\tools\raylib\include"
+$env:RAYLIB_LIB = "D:\tools\raylib\lib\libraylib.a"
+$env:RAYLIB_TOOLCHAIN_BIN = "D:\tools\w64devkit\bin"
+.\build.ps1
 ```
