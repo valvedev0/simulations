@@ -2,6 +2,10 @@
 
 #include "raylib.h"
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#endif
+
 #include <algorithm>
 #include <memory>
 #include <string>
@@ -26,6 +30,7 @@ struct AppState {
     int currentIndex = 0;
     bool quitFromRunning = false;
     AppMode mode = AppMode::Launcher;
+    bool shouldClose = false;
 };
 
 int FindSimulationIndexById(const std::vector<SimulationEntry>& registry, const std::string& id) {
@@ -140,6 +145,62 @@ void DrawRunning(AppState& state) {
     }
 }
 
+void UpdateDrawFrame(void* userData) {
+    AppState& state = *static_cast<AppState*>(userData);
+
+    if (state.mode == AppMode::Launcher) {
+        if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_J)) {
+            MoveSelection(state, 1);
+        }
+        if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_K)) {
+            MoveSelection(state, -1);
+        }
+        if (IsKeyPressed(KEY_ENTER) && !state.registry.empty()) {
+            StartSimulation(state, state.currentIndex);
+        }
+    } else {
+        if (IsKeyPressed(KEY_ESCAPE)) {
+            if (state.quitFromRunning) {
+                state.shouldClose = true;
+#if defined(__EMSCRIPTEN__)
+                emscripten_cancel_main_loop();
+#endif
+                return;
+            }
+            state.currentSimulation.reset();
+            state.mode = AppMode::Launcher;
+        }
+        if ((IsKeyPressed(KEY_N) || IsKeyPressed(KEY_RIGHT)) && state.registry.size() > 1) {
+            MoveSelection(state, 1);
+            StartSimulation(state, state.currentIndex);
+        }
+        if ((IsKeyPressed(KEY_LEFT)) && state.registry.size() > 1) {
+            MoveSelection(state, -1);
+            StartSimulation(state, state.currentIndex);
+        }
+        if (IsKeyPressed(KEY_R) && state.currentSimulation != nullptr) {
+            state.currentSimulation->reset();
+        }
+        if (state.currentSimulation != nullptr) {
+            state.currentSimulation->update(GetFrameTime());
+        }
+    }
+
+    BeginDrawing();
+    ClearBackground(Color{20, 22, 27, 255});
+
+    if (state.mode == AppMode::Launcher) {
+        DrawLauncher(state);
+    } else {
+        DrawRunning(state);
+    }
+
+    if (state.mode == AppMode::Launcher) {
+        DrawHeader(state);
+    }
+    EndDrawing();
+}
+
 }  // namespace
 
 int RunSimulationApp(std::vector<SimulationEntry> registry, const SimulationAppOptions& options) {
@@ -148,73 +209,33 @@ int RunSimulationApp(std::vector<SimulationEntry> registry, const SimulationAppO
     SetExitKey(KEY_NULL);
     SetTargetFPS(60);
 
-    AppState state;
-    state.registry = std::move(registry);
-    state.quitFromRunning = !options.showLauncherOnStart;
-    state.mode = options.showLauncherOnStart ? AppMode::Launcher : AppMode::Running;
+    AppState* state = new AppState();
+    state->registry = std::move(registry);
+    state->quitFromRunning = !options.showLauncherOnStart;
+    state->mode = options.showLauncherOnStart ? AppMode::Launcher : AppMode::Running;
 
     if (!options.initialSimulationId.empty()) {
-        const int index = FindSimulationIndexById(state.registry, options.initialSimulationId);
+        const int index = FindSimulationIndexById(state->registry, options.initialSimulationId);
         if (index >= 0) {
-            StartSimulation(state, index);
+            StartSimulation(*state, index);
         } else {
-            state.mode = AppMode::Launcher;
+            state->mode = AppMode::Launcher;
         }
-    } else if (!options.showLauncherOnStart && !state.registry.empty()) {
-        StartSimulation(state, 0);
+    } else if (!options.showLauncherOnStart && !state->registry.empty()) {
+        StartSimulation(*state, 0);
     }
 
-    while (!WindowShouldClose()) {
-        if (state.mode == AppMode::Launcher) {
-            if (IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_J)) {
-                MoveSelection(state, 1);
-            }
-            if (IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_K)) {
-                MoveSelection(state, -1);
-            }
-            if (IsKeyPressed(KEY_ENTER) && !state.registry.empty()) {
-                StartSimulation(state, state.currentIndex);
-            }
-        } else {
-            if (IsKeyPressed(KEY_ESCAPE)) {
-                if (state.quitFromRunning) {
-                    break;
-                }
-                state.currentSimulation.reset();
-                state.mode = AppMode::Launcher;
-            }
-            if ((IsKeyPressed(KEY_N) || IsKeyPressed(KEY_RIGHT)) && state.registry.size() > 1) {
-                MoveSelection(state, 1);
-                StartSimulation(state, state.currentIndex);
-            }
-            if ((IsKeyPressed(KEY_LEFT)) && state.registry.size() > 1) {
-                MoveSelection(state, -1);
-                StartSimulation(state, state.currentIndex);
-            }
-            if (IsKeyPressed(KEY_R) && state.currentSimulation != nullptr) {
-                state.currentSimulation->reset();
-            }
-            if (state.currentSimulation != nullptr) {
-                state.currentSimulation->update(GetFrameTime());
-            }
-        }
-
-        BeginDrawing();
-        ClearBackground(Color{20, 22, 27, 255});
-
-        if (state.mode == AppMode::Launcher) {
-            DrawLauncher(state);
-        } else {
-            DrawRunning(state);
-        }
-
-        if (state.mode == AppMode::Launcher) {
-            DrawHeader(state);
-        }
-        EndDrawing();
+#if defined(__EMSCRIPTEN__)
+    emscripten_set_main_loop_arg(UpdateDrawFrame, state, 0, 1);
+#else
+    while (!WindowShouldClose() && !state->shouldClose) {
+        UpdateDrawFrame(state);
     }
 
-    state.currentSimulation.reset();
+    state->currentSimulation.reset();
+    delete state;
     CloseWindow();
+#endif
+
     return 0;
 }
