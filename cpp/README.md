@@ -90,7 +90,39 @@ Flight controls:
 - `Space`: zero velocity
 - `R`: reset
 - `Esc`: quit direct executable, or return to launcher
+## Build (WebAssembly)
 
+This project supports compiling to WebAssembly (Wasm) using Emscripten, allowing simulations to run in a web browser.
+
+### 1. Prerequisites
+
+- **Emscripten (emsdk):** [Install and activate](https://emscripten.org/docs/getting_started/downloads.html) the Emscripten toolchain.
+- **Local Web Server:** Needed to test the build (e.g., Python `http.server` or Node `npx serve`).
+
+### 2. Build
+
+Activate the Emscripten environment in your terminal and run the web build script:
+
+```powershell
+& "C:\path\to\emsdk\emsdk_env.ps1"
+.\build_web.ps1
+```
+
+The script will:
+1. Automatically compile a WebAssembly-compatible version of Raylib if not found.
+2. Compile the simulations into `build/web/simulations.html`.
+
+### 3. Run
+
+Start a local server in the output directory:
+
+```powershell
+python -m http.server -d build/web
+```
+Navigate to `http://localhost:8000/simulations.html`.
+
+## Controls
+...
 ## Add A Simulation
 
 1. Add a new `.cpp` file under `src/simulations`.
@@ -99,19 +131,16 @@ Flight controls:
 4. Register it in `src/simulations/registry.cpp`.
 5. Add its id to `SIM_IDS` in `Makefile` if you want a separate executable under `build/sims`.
 
-The flight simulation is the current reference template. It mirrors a pygame-style interactive simulation layout with a starfield, craft, waypoint, autopilot toggle, and right-side diagnostics panel.
+**Note for Web:** Ensure your simulation follows the `update(float deltaTime)` and `draw()` pattern. Do not introduce any blocking infinite loops inside these methods, as they will freeze the browser tab.
 
-Example registry entry:
+## Web Compatibility Guidelines
 
-```cpp
-{"my-sim", "My Simulation", "Category", "Short description.", &CreateMySimulation},
-```
+To ensure your simulations work perfectly on the web:
 
-Example direct target:
-
-```make
-SIM_IDS := flight my-sim
-```
+- **Main Loop:** Never create your own `while` loop for frames. Use the `update()` and `draw()` methods provided by the `Simulation` interface. The `SimulationApp` handles the platform-specific loop logic (Emscripten vs Desktop).
+- **File I/O:** Browsers use a virtual file system. If your simulation needs to load assets (textures, data), they must be preloaded or embedded using Emscripten's `--preload-file` or `--embed-file` flags in `build_web.ps1`.
+- **Performance:** While WebAssembly is fast, try to optimize complex physics or many-particle systems. Use `deltaTime` for all movement to ensure consistent behavior across different screen refresh rates.
+- **Resolution:** The workspace is currently optimized for a `1220x640` canvas.
 
 ## Advanced Windows Configuration
 

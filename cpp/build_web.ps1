@@ -65,7 +65,8 @@ $EmccArgs = @(
     "-Iinclude",
     "-I$($RaylibInclude -replace '\\', '/')",
     "-s", "USE_GLFW=3",
-    "-s", "ASYNCIFY"
+    "-s", "ASYNCIFY",
+    "--shell-file", "C:/raylib/raylib/src/minshell.html"
 ) + $Sources + @(
     "$($RaylibWebLib -replace '\\', '/')",
     "-o", "build/web/simulations.html"

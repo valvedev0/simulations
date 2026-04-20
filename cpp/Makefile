@@ -20,7 +20,7 @@ else
 endif
 
 LAUNCHER_TARGET := build/simulations$(EXE_EXT)
-SIM_IDS := flight ants fluid
+SIM_IDS := flight ants fluid birds
 SIM_TARGETS := $(addprefix build/sims/,$(addsuffix $(EXE_EXT),$(SIM_IDS)))
 STANDALONE_OBJECTS := $(addprefix build/obj/standalone/,$(addsuffix .o,$(SIM_IDS)))
 
