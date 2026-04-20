@@ -4,24 +4,24 @@ import subprocess
 import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import font, messagebox
 
 
 def load_launcher_config(base_dir):
     config_path = base_dir / "configs" / "launcher_config.json"
     default_config = {
-        "title": "Python Simulation Launcher",
-        "subtitle": "Pick a simulation and click Run.",
-        "window_width": 700,
-        "window_height": 460,
+        "title": "Simulation Workspace",
+        "subtitle": "Select a module to launch the interactive environment",
+        "window_width": 800,
+        "window_height": 540,
     }
     try:
-        with open(config_path, "r", encoding="utf-8") as config_file:
-            loaded = json.load(config_file)
-            if isinstance(loaded, dict):
-                default_config.update(loaded)
+        if config_path.exists():
+            with open(config_path, "r", encoding="utf-8") as config_file:
+                loaded = json.load(config_file)
+                if isinstance(loaded, dict):
+                    default_config.update(loaded)
     except Exception:
-        # Keep launcher robust even when config is missing/corrupt.
         pass
     return default_config
 
@@ -41,10 +41,19 @@ def discover_simulations(base_dir):
 
         folder_name = sim_folder.name
         display_name = folder_name.replace("_", " ").title()
+
+        # Determine a category based on common naming or folder structure
+        category = "General"
+        if folder_name in ["ant", "ants", "birds"]:
+            category = "Biological"
+        elif folder_name in ["flight", "laser", "fluid"]:
+            category = "Physics"
+
         sims.append(
             {
                 "display_name": display_name,
                 "folder_name": folder_name,
+                "category": category,
                 "entry_file": str(entry_file),
             }
         )
@@ -57,121 +66,193 @@ class SimLauncherApp:
         self.base_dir = Path(__file__).resolve().parent
         self.config = load_launcher_config(self.base_dir)
 
+        # Theme Colors (Deep Dark / Slate)
+        self.colors = {
+            "bg": "#0f172a",  # Deep Blue-Gray
+            "sidebar": "#1e293b",  # Lighter Slate
+            "card": "#334155",  # UI Slate
+            "accent": "#38bdf8",  # Sky Blue
+            "text": "#f8fafc",  # Ghost White
+            "muted": "#94a3b8",  # Muted Slate
+            "button": "#0ea5e9",  # Bright Blue
+            "button_hover": "#0284c7",
+        }
+
         self.root.title(self.config["title"])
         self.root.geometry(
             f"{self.config['window_width']}x{self.config['window_height']}"
         )
-        self.root.minsize(540, 360)
+        self.root.configure(bg=self.colors["bg"])
+        self.root.minsize(700, 480)
 
-        self.status_var = tk.StringVar(value="Select a simulation and click Run.")
+        self.status_var = tk.StringVar(value="System Ready")
         self.sim_entries = []
 
+        self.setup_fonts()
         self.build_ui()
         self.refresh_list()
 
+    def setup_fonts(self):
+        self.fonts = {
+            "title": font.Font(family="Segoe UI", size=20, weight="bold"),
+            "subtitle": font.Font(family="Segoe UI", size=10),
+            "card_title": font.Font(family="Segoe UI", size=12, weight="bold"),
+            "card_meta": font.Font(family="Consolas", size=9),
+            "status": font.Font(family="Consolas", size=9),
+        }
+
     def build_ui(self):
-        container = tk.Frame(self.root, padx=12, pady=12)
-        container.pack(fill=tk.BOTH, expand=True)
+        # Header Section
+        header = tk.Frame(self.root, bg=self.colors["bg"], padx=30, pady=25)
+        header.pack(fill=tk.X)
 
-        title = tk.Label(
-            container, text=self.config["title"], font=("Segoe UI", 14, "bold")
-        )
-        title.pack(anchor="w")
+        tk.Label(
+            header,
+            text=self.config["title"].upper(),
+            font=self.fonts["title"],
+            fg=self.colors["accent"],
+            bg=self.colors["bg"],
+        ).pack(anchor="w")
 
-        subtitle = tk.Label(
-            container,
+        tk.Label(
+            header,
             text=self.config["subtitle"],
-            font=("Segoe UI", 10),
-            fg="#444444",
+            font=self.fonts["subtitle"],
+            fg=self.colors["muted"],
+            bg=self.colors["bg"],
+        ).pack(anchor="w", pady=(2, 0))
+
+        # Main Content Area (Scrollable List)
+        main_frame = tk.Frame(self.root, bg=self.colors["bg"], padx=30)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        list_container = tk.Frame(main_frame, bg=self.colors["sidebar"], bd=0)
+        list_container.pack(fill=tk.BOTH, expand=True)
+
+        scrollbar = tk.Scrollbar(
+            list_container, orient=tk.VERTICAL, bg=self.colors["sidebar"]
         )
-        subtitle.pack(anchor="w", pady=(2, 10))
-
-        list_frame = tk.Frame(container)
-        list_frame.pack(fill=tk.BOTH, expand=True)
-
-        scrollbar = tk.Scrollbar(list_frame, orient=tk.VERTICAL)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         self.listbox = tk.Listbox(
-            list_frame,
+            list_container,
             selectmode=tk.SINGLE,
             yscrollcommand=scrollbar.set,
-            font=("Consolas", 11),
-            activestyle="dotbox",
+            font=self.fonts["card_title"],
+            bg=self.colors["sidebar"],
+            fg=self.colors["text"],
+            selectbackground=self.colors["accent"],
+            selectforeground=self.colors["bg"],
+            activestyle="none",
+            bd=0,
+            highlightthickness=0,
         )
-        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=10, pady=10)
         scrollbar.config(command=self.listbox.yview)
 
-        self.listbox.bind("<Double-Button-1>", lambda _event: self.run_selected())
+        self.listbox.bind("<Double-Button-1>", lambda _: self.run_selected())
+        self.listbox.bind("<<ListboxSelect>>", self.on_select)
 
-        controls = tk.Frame(container)
-        controls.pack(fill=tk.X, pady=(10, 4))
+        # Footer / Controls
+        footer = tk.Frame(self.root, bg=self.colors["bg"], padx=30, pady=20)
+        footer.pack(fill=tk.X)
 
-        run_btn = tk.Button(
-            controls, text="Run Selected", command=self.run_selected, width=16
+        self.run_btn = tk.Button(
+            footer,
+            text="LAUNCH SIMULATION",
+            command=self.run_selected,
+            bg=self.colors["button"],
+            fg=self.colors["text"],
+            activebackground=self.colors["button_hover"],
+            font=self.fonts["card_title"],
+            padx=20,
+            pady=8,
+            bd=0,
+            cursor="hand2",
         )
-        run_btn.pack(side=tk.LEFT)
+        self.run_btn.pack(side=tk.LEFT)
 
-        refresh_btn = tk.Button(
-            controls, text="Refresh", command=self.refresh_list, width=12
-        )
-        refresh_btn.pack(side=tk.LEFT, padx=(8, 0))
+        tk.Button(
+            footer,
+            text="REFRESH",
+            command=self.refresh_list,
+            bg=self.colors["card"],
+            fg=self.colors["text"],
+            padx=15,
+            pady=8,
+            bd=0,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=10)
 
-        quit_btn = tk.Button(
-            controls, text="Close", command=self.root.destroy, width=12
-        )
-        quit_btn.pack(side=tk.RIGHT)
+        tk.Button(
+            footer,
+            text="EXIT",
+            command=self.root.destroy,
+            bg="#ef4444",
+            fg=self.colors["text"],
+            padx=15,
+            pady=8,
+            bd=0,
+            cursor="hand2",
+        ).pack(side=tk.RIGHT)
 
-        status = tk.Label(
-            container,
+        # Status Bar
+        self.status_bar = tk.Label(
+            self.root,
             textvariable=self.status_var,
+            font=self.fonts["status"],
+            bg=self.colors["sidebar"],
+            fg=self.colors["muted"],
             anchor="w",
-            justify=tk.LEFT,
-            fg="#1d3557",
-            wraplength=650,
+            padx=10,
+            pady=3,
         )
-        status.pack(fill=tk.X, pady=(8, 0))
+        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
 
     def refresh_list(self):
         self.listbox.delete(0, tk.END)
         self.sim_entries = discover_simulations(self.base_dir)
         for sim in self.sim_entries:
-            self.listbox.insert(
-                tk.END, f"{sim['display_name']}  ({sim['folder_name']})"
-            )
+            # Add some spacing using spaces in the string for a cleaner look
+            entry_text = f"  {sim['display_name']}   [{sim['category'].upper()}]"
+            self.listbox.insert(tk.END, entry_text)
 
         if self.sim_entries:
             self.listbox.selection_set(0)
             self.status_var.set(
-                f"Found {len(self.sim_entries)} simulation(s) in simulations/ folders."
+                f"Workspace initialized. {len(self.sim_entries)} simulations detected."
             )
         else:
+            self.status_var.set("Warning: No simulations detected in workspace.")
+
+    def on_select(self, event):
+        selection = self.listbox.curselection()
+        if selection:
+            sim = self.sim_entries[selection[0]]
             self.status_var.set(
-                "No runnable simulations found. Add simulations/<name>/run.py"
+                f"Target: {sim['folder_name']}/run.py ready for deployment."
             )
 
     def run_selected(self):
         selection = self.listbox.curselection()
         if not selection:
-            messagebox.showwarning(
-                "No Selection", "Please select a simulation file first."
-            )
             return
 
         sim = self.sim_entries[selection[0]]
-        file_path = sim["entry_file"]
+        file_path = Path(sim["entry_file"])
 
-        if not Path(file_path).is_file():
-            messagebox.showerror("File Missing", f"Cannot find:\n{file_path}")
-            self.refresh_list()
+        if not file_path.is_file():
+            messagebox.showerror("IO Error", f"Entry point missing:\n{file_path}")
             return
 
         try:
-            subprocess.Popen([sys.executable, file_path], cwd=self.base_dir)
-            self.status_var.set(f"Started: {sim['display_name']}")
+            # Use the environment python if possible
+            python_exe = sys.executable
+            subprocess.Popen([python_exe, str(file_path)], cwd=str(file_path.parent))
+            self.status_var.set(f"Success: {sim['display_name']} instance started.")
         except Exception as exc:
             messagebox.showerror(
-                "Launch Failed", f"Could not run {sim['display_name']}\n\n{exc}"
+                "Runtime Error", f"Failed to initialize simulation:\n\n{exc}"
             )
 
 

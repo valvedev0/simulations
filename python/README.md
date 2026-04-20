@@ -44,27 +44,44 @@ Verify installation:
 uv --version
 ```
 
-## Setup (install dependencies once)
+## Setup (Environment & Dependencies)
 
-Navigate to this folder and set up the environment:
+### 1. Using `uv` (Recommended)
 
 **Windows:**
 ```powershell
-cd path\to\simulations\python
 uv venv --clear --python 3.12 .venv
 uv pip install -r requirements.txt --only-binary :all:
 ```
 
 **Linux/macOS:**
 ```bash
-cd path/to/simulations/python
 uv venv --clear --python 3.12 .venv
 uv pip install -r requirements.txt
 ```
 
+### 2. Using standard Python (No `uv`)
+
+If you don't have `uv` installed, you can use the built-in `venv` module.
+
+**Windows:**
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+**Linux/macOS:**
+```bash
+python3 -m venv .venv
+./.venv/bin/python -m pip install --upgrade pip
+./.venv/bin/python -m pip install -r requirements.txt
+```
+
 *Notes:*
-- `venv`/`.venv` is a project-local virtual environment (keeps installs from breaking your global Python).
-- On Windows, the `--only-binary :all:` flag avoids building packages from source.
+- `.venv` is a project-local virtual environment that keeps dependencies isolated.
+- On Linux, ensure `python3-venv` is installed (`sudo apt install python3-venv`).
+- If you use the standard `python` method on Windows and encounter build errors, you may need the "Build Tools for Visual Studio". `uv` avoids this by using pre-built binaries.
 
 ## Run from launcher
 
