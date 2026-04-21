@@ -94,30 +94,63 @@ Flight controls:
 
 This project supports compiling to WebAssembly (Wasm) using Emscripten, allowing simulations to run in a web browser.
 
-### 1. Prerequisites
+### 1. Install Emscripten (emsdk)
 
-- **Emscripten (emsdk):** [Install and activate](https://emscripten.org/docs/getting_started/downloads.html) the Emscripten toolchain.
-- **Local Web Server:** Needed to test the build (e.g., Python `http.server` or Node `npx serve`).
+If you don't have the Emscripten SDK installed:
 
-### 2. Build
+1.  **Clone the repository:**
+    ```powershell
+    git clone https://github.com/emscripten-core/emsdk.git
+    cd emsdk
+    ```
+2.  **Install and Activate:**
+    ```powershell
+    # Download and install the latest SDK tools.
+    .\emsdk.ps1 install latest
 
-Activate the Emscripten environment in your terminal and run the web build script:
+    # Make the "latest" SDK "active" for the current user.
+    .\emsdk.ps1 activate latest
+    ```
+
+### 2. Activate Environment
+
+Every time you open a new terminal, you must activate the Emscripten environment variables:
 
 ```powershell
-& "C:\path\to\emsdk\emsdk_env.ps1"
+# Run this from your emsdk directory
+.\emsdk_env.ps1
+```
+
+*Tip: You can add the emsdk directory to your PATH or run the activation script automatically in your profile to skip this step.*
+
+### 3. Build
+
+Once `emcc` is available in your path, run the web build script from the project root:
+
+```powershell
 .\build_web.ps1
 ```
 
-The script will:
-1. Automatically compile a WebAssembly-compatible version of Raylib if not found.
-2. Compile the simulations into `build/web/simulations.html`.
-
-### 3. Run
-
-Start a local server in the output directory:
+If you are building for the first time or need to recompile the Raylib library itself (e.g., after an update), use the `-Force` flag:
 
 ```powershell
+.\build_web.ps1 -Force
+```
+
+The script will:
+1.  Automatically compile a WebAssembly-compatible version of Raylib (`libraylib_web.a`).
+2.  Compile all simulations into `build/web/simulations.html`.
+
+### 4. Run
+
+Start a local server in the output directory (browsers cannot run Wasm files directly from `file://` URIs):
+
+```powershell
+# Using Python
 python -m http.server -d build/web
+
+# Or using Node.js
+npx serve build/web
 ```
 Navigate to `http://localhost:8000/simulations.html`.
 
