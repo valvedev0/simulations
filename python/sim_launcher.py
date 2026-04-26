@@ -68,7 +68,7 @@ class SimLauncherApp:
 
         # Theme Colors (Deep Dark / Slate)
         self.colors = {
-            "bg": "#0f172a",  # Deep Blue-Gray
+            "bg": "#0f2a1d",  # Deep Blue-Gray
             "sidebar": "#1e293b",  # Lighter Slate
             "card": "#334155",  # UI Slate
             "accent": "#38bdf8",  # Sky Blue

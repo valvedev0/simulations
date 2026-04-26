@@ -16,6 +16,9 @@ src/
     registry.cpp       Registers available simulations
     flight.cpp         Pygame-style 2D flight diagnostics experiment
     ants.cpp           Ant colony foraging diagnostics experiment
+    fluid.cpp          Interactive particle-based fluid simulation
+    birds.cpp          Bird flocking with weather and predator logic
+    rocket.cpp         Rocket landing game with PID-controlled descent
 ```
 
 ## Build (Windows)
@@ -88,8 +91,25 @@ Flight controls:
 - `Left Mouse Button`: set waypoint
 - `Right Mouse Button` or `P`: toggle autopilot
 - `Space`: zero velocity
-- `R`: reset
-- `Esc`: quit direct executable, or return to launcher
+
+### Rocket Landing
+- `W`: Fire Main Engine (Manual)
+- `A` / `D`: Rotation / RCS Thrusters
+- `P`: Toggle Autopilot (PID Stabilization)
+- `R`: Reset Mission
+
+### Bird Flock & Weather
+- `1` - `4`: Change Weather (Clear, Wind, Storm, Rain)
+- `Space`: Spawn Predator at mouse position
+- `Left Mouse Button`: Set target waypoint for flock
+- `Right Mouse Button`: Set wind direction
+- `+` / `-`: Change simulation speed
+
+### Particle Fluid
+- `Left Mouse Button`: Attract particles
+- `Right Mouse Button`: Repel particles
+- `R`: Reset fluid particles
+
 ## Build (WebAssembly)
 
 This project supports compiling to WebAssembly (Wasm) using Emscripten, allowing simulations to run in a web browser.
