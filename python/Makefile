@@ -5,8 +5,9 @@ else
 PY ?= $(VENV_PY)
 endif
 SCRIPT ?= ant_sim.py
+SIM ?= laser
 
-.PHONY: install install-all run
+.PHONY: install install-all run web-build
 
 install:
 	$(PY) -m pip install --upgrade pip
@@ -18,3 +19,6 @@ install-all:
 
 run:
 	$(PY) $(SCRIPT)
+
+web-build:
+	$(PY) tools/build_web_sim.py $(SIM)
