@@ -19,6 +19,7 @@ src/
     fluid.cpp          Interactive particle-based fluid simulation
     birds.cpp          Bird flocking with weather and predator logic
     rocket.cpp         Rocket landing game with PID-controlled descent
+    galaxy.cpp         High-performance 50,000+ particle simulator using rlgl
 ```
 
 ## Build (Windows)
@@ -109,6 +110,10 @@ Flight controls:
 - `Left Mouse Button`: Attract particles
 - `Right Mouse Button`: Repel particles
 - `R`: Reset fluid particles
+
+### High-Performance Galaxy
+- `Left Mouse Button (Hold)`: Drag the central black hole
+- `R`: Regenerate the galaxy
 
 ## Build (WebAssembly)
 
