@@ -14,12 +14,13 @@ src/
   simulation_app.cpp   Window loop, menu, keyboard handling
   simulations/
     registry.cpp       Registers available simulations
-    flight.cpp         Pygame-style 2D flight diagnostics experiment
-    ants.cpp           Ant colony foraging diagnostics experiment
+    flight.cpp         Space Checkpoint Racer game with timed levels and obstacles
+    ants.cpp           Colony Defender game with resource management and abilities
     fluid.cpp          Interactive particle-based fluid simulation
     birds.cpp          Bird flocking with weather and predator logic
     rocket.cpp         Rocket landing game with PID-controlled descent
     galaxy.cpp         High-performance 50,000+ particle simulator using rlgl
+    synth.cpp          Real-time audio synthesizer and sequencer with piano keyboard
 ```
 
 ## Build (Windows)
@@ -87,11 +88,18 @@ Run a simulation directly:
 
 Flight controls:
 
-- `W` / `S` or `Up` / `Down`: increase or decrease throttle
-- `A` / `D` or `Left` / `Right`: turn
-- `Left Mouse Button`: set waypoint
-- `Right Mouse Button` or `P`: toggle autopilot
-- `Space`: zero velocity
+- `W` / `S` or `Up` / `Down`: Throttle Up/Down
+- `A` / `D` or `Left` / `Right`: Turn Left/Right
+- `Space`: E-Brake (Stop completely)
+- `Enter`: Next Level / Retry
+- `R`: Full Reset
+
+### Ant Colony Defender
+- `1`: Select "Drop Food" ability
+- `2`: Select "Drop Rock" ability
+- `3`: Select "Spawn Ants" ability
+- `Left Mouse Button`: Use selected ability in the dirt area
+- `R`: Restart game
 
 ### Rocket Landing
 - `W`: Fire Main Engine (Manual)
@@ -114,6 +122,14 @@ Flight controls:
 ### High-Performance Galaxy
 - `Left Mouse Button (Hold)`: Drag the central black hole
 - `R`: Regenerate the galaxy
+
+### Retro Synthesizer
+- `Keys A-L`: White piano keys (C4 to D5)
+- `Keys W, E, T, Y, U`: Black piano keys
+- `Up/Down Arrows`: Change waveform (Sine, Square, Sawtooth)
+- `R` / `SPACE`: Start or Stop Recording
+- `SPACE`: Play Sequence (when idle)
+- `BACKSPACE`: Clear Sequence
 
 ## Build (WebAssembly)
 

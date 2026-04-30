@@ -9,6 +9,7 @@ std::unique_ptr<Simulation> CreateFluidSimulation();
 std::unique_ptr<Simulation> CreateBirdSimulation();
 std::unique_ptr<Simulation> CreateRocketSimulation();
 std::unique_ptr<Simulation> CreateGalaxySimulation();
+std::unique_ptr<Simulation> CreateSynthSimulation();
 
 std::vector<SimulationEntry> BuildSimulationRegistry() {
     return {
@@ -18,5 +19,6 @@ std::vector<SimulationEntry> BuildSimulationRegistry() {
         {"birds", "Bird Flight & Weather", "Nature", "Birds flying in various weather conditions controlled by keys.", &CreateBirdSimulation},
         {"rocket", "Rocket Landing PID", "Aerospace", "2D rocket landing simulation with PID-controlled thrust and orientation.", &CreateRocketSimulation},
         {"galaxy", "GPU Galaxy Sim", "High Performance", "Renders 50,000+ interacting particles using optimized rlgl batching.", &CreateGalaxySimulation},
+        {"synth", "Retro Synthesizer", "Audio", "Real-time audio synthesizer and sequencer with piano keyboard.", &CreateSynthSimulation},
     };
 }

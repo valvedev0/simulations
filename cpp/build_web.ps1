@@ -100,6 +100,9 @@ $EmccArgs = @(
     "-I$($RaylibInclude -replace '\\', '/')",
     "-s", "USE_GLFW=3",
     "-s", "ASYNCIFY",
+    "-s", "MAX_WEBGL_VERSION=2",
+    "-s", "MIN_WEBGL_VERSION=2",
+    "-s", "EXPORTED_RUNTIME_METHODS=['HEAPF32']",
     "--shell-file", "$($ShellFile -replace '\\', '/')"
 ) + $Sources + @(
     "$($RaylibWebLib -replace '\\', '/')",

@@ -1,227 +1,318 @@
 #include "simulation.hpp"
-
 #include "raylib.h"
+#include "raymath.h"
 
-#include <algorithm>
-#include <chrono>
-#include <cmath>
-#include <fstream>
-#include <memory>
-#include <numeric>
 #include <vector>
+#include <cmath>
+#include <memory>
 
 namespace {
 
-constexpr int kSimWidth = 900;
-constexpr int kUiWidth = 320;
+constexpr int kSimWidth = 1220;
+constexpr int kUiWidth = 300;
 constexpr int kHeight = 640;
-constexpr int kAntCount = 180;
-constexpr int kTrailCount = 480;
-constexpr float kPi = 3.14159265359f;
-constexpr float kAntSpeed = 74.0f;
-constexpr float kTurnNoise = 1.45f;
-constexpr float kNestRadius = 28.0f;
-constexpr float kFoodRadius = 24.0f;
-constexpr float kTrailLife = 5.0f;
-constexpr int kFoodBatch = 50;
+constexpr int kMaxAnts = 1000;
+constexpr int kMaxTrails = 15000;
+constexpr float kPi = 3.14159265f;
+constexpr float kAntSpeed = 80.0f;
+constexpr float kTurnNoise = 0.4f;
+constexpr float kNestRadius = 30.0f;
+constexpr float kTrailLife = 10.0f;
 
 struct Ant {
-    Vector2 position{};
-    float angle = 0.0f;
-    float distance = 0.0f;
-    bool carryingFood = false;
+    Vector2 position;
+    float angle;
+    float distance;
+    bool carryingFood;
 };
 
 struct Trail {
-    Vector2 position{};
-    float age = 0.0f;
-    bool foodTrail = false;
+    Vector2 position;
+    float age;
+    bool foodTrail;
 };
 
-struct AntRecord {
-    bool valid = false;
-    float timeTaken = 0.0f;
-    int frames = 0;
-    int foodCollected = 0;
-    float totalAntDistance = 0.0f;
-    float averageAntDistance = 0.0f;
-    float averageUpdateMs = 0.0f;
-    float averageFrameMs = 0.0f;
+struct FoodSource {
+    Vector2 position;
+    int amount;
+    float radius;
+};
+
+struct Obstacle {
+    Vector2 position;
+    float radius;
 };
 
 float Distance(Vector2 a, Vector2 b) {
     const float dx = a.x - b.x;
     const float dy = a.y - b.y;
-    return std::sqrt(dx * dx + dy * dy);
+    return sqrtf(dx * dx + dy * dy);
 }
 
-float Average(const std::vector<float>& values) {
-    if (values.empty()) {
-        return 0.0f;
-    }
-    return std::accumulate(values.begin(), values.end(), 0.0f) / static_cast<float>(values.size());
-}
-
-float RandomFloat(float minValue, float maxValue) {
-    return minValue + static_cast<float>(GetRandomValue(0, 10000)) / 10000.0f * (maxValue - minValue);
+float RandomFloat(float min, float max) {
+    return min + (max - min) * ((float)GetRandomValue(0, 10000) / 10000.0f);
 }
 
 float AngleTo(Vector2 from, Vector2 to) {
-    return std::atan2(to.y - from.y, to.x - from.x);
+    return atan2f(to.y - from.y, to.x - from.x);
 }
 
 float WrapRadians(float angle) {
-    while (angle < -kPi) {
-        angle += 2.0f * kPi;
-    }
     while (angle > kPi) {
         angle -= 2.0f * kPi;
+    }
+    while (angle < -kPi) {
+        angle += 2.0f * kPi;
     }
     return angle;
 }
 
 Vector2 Direction(float angle) {
-    return Vector2{std::cos(angle), std::sin(angle)};
+    return Vector2{cosf(angle), sinf(angle)};
 }
 
-class AntSimulation final : public Simulation {
+class AntSimulation : public Simulation {
 public:
     AntSimulation() {
-        LoadFonts();
         reset();
     }
 
-    ~AntSimulation() override {
-        if (uiFontLoaded_) {
-            UnloadFont(uiFont_);
-        }
-        if (titleFontLoaded_) {
-            UnloadFont(titleFont_);
-        }
-    }
-
-    const char* name() const override {
-        return "Ant Foraging Simulation";
-    }
+    const char* name() const override { return "Ant Colony Defender (Game)"; }
 
     void reset() override {
-        nest_ = Vector2{kSimWidth * 0.20f, kHeight * 0.58f};
-        food_ = Vector2{kSimWidth * 0.76f, kHeight * 0.36f};
-        elapsed_ = 0.0f;
-        frameCount_ = 0;
-        foodCollected_ = 0;
-        targetFood_ = kFoodBatch;
-        firstFoodTime_ = -1.0f;
-        experimentComplete_ = false;
-        eventLogged_ = false;
-        record_ = AntRecord{};
-        frameMs_.clear();
-        updateMs_.clear();
-        trails_.clear();
+        nest_ = { (kSimWidth - kUiWidth) / 2.0f, kHeight / 2.0f };
+        
         ants_.clear();
-        ants_.reserve(kAntCount);
-
-        for (int i = 0; i < kAntCount; ++i) {
-            ants_.push_back(Ant{
+        int initialAnts = 50 + (level_ * 20);
+        if (initialAnts > kMaxAnts) initialAnts = kMaxAnts;
+        
+        for (int i = 0; i < initialAnts; ++i) {
+            ants_.push_back({
                 nest_,
-                RandomFloat(0.0f, 2.0f * kPi),
+                RandomFloat(-kPi, kPi),
                 0.0f,
-                false,
+                false
             });
         }
+        
+        trails_.clear();
+        obstacles_.clear();
+        foodSources_.clear();
+
+        // Generate initial food sources based on level
+        for(int i=0; i < level_ + 2; ++i) {
+            SpawnFood();
+        }
+
+        // Generate random natural obstacles based on level
+        for(int i=0; i < level_ * 2; ++i) {
+            obstacles_.push_back({
+                { RandomFloat(50, kSimWidth - kUiWidth - 50), RandomFloat(50, kHeight - 50) },
+                RandomFloat(20, 50)
+            });
+        }
+
+        foodCollected_ = 0;
+        targetFood_ = level_ * 100 + 50;
+        colonyHealth_ = 100.0f;
+        gameMode_ = 0; // 0 = Place Food, 1 = Draw Obstacle, 2 = Spawn Swarm
+        gameOver_ = false;
+        levelComplete_ = false;
     }
 
     void update(float deltaTime) override {
-        const auto updateStart = std::chrono::steady_clock::now();
+        if (IsKeyPressed(KEY_R)) {
+            level_ = 1;
+            score_ = 50; // Starting score
+            reset();
+            return;
+        }
+        
+        if (gameOver_) return;
 
-        if (experimentComplete_) {
-            HandleContinueButton();
+        if (levelComplete_) {
+            if (IsKeyPressed(KEY_ENTER)) {
+                level_++;
+                reset();
+            }
             return;
         }
 
-        ++frameCount_;
-        elapsed_ += deltaTime;
-        frameMs_.push_back(deltaTime * 1000.0f);
-        TrimSamples(frameMs_);
+        // --- INTERACTIVITY ---
+        if (IsKeyPressed(KEY_ONE)) gameMode_ = 0;
+        if (IsKeyPressed(KEY_TWO)) gameMode_ = 1;
+        if (IsKeyPressed(KEY_THREE)) gameMode_ = 2;
 
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-            const Vector2 mouse = GetMousePosition();
-            if (mouse.x < kSimWidth) {
-                food_ = mouse;
+        Vector2 mouse = GetMousePosition();
+        bool inSimArea = (mouse.x < kSimWidth - kUiWidth);
+
+        // Player Actions
+        if (inSimArea && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+            if (gameMode_ == 0 && score_ >= 10) { 
+                // Place Food
+                foodSources_.push_back({mouse, 50, 15.0f});
+                score_ -= 10;
+            } else if (gameMode_ == 1 && score_ >= 5) { 
+                // Draw Player Obstacle
+                obstacles_.push_back({mouse, 15.0f});
+                score_ -= 5;
+            } else if (gameMode_ == 2 && score_ >= 20) { 
+                // Swarm Attack (Spawn ants)
+                for(int i=0; i<10; i++) {
+                    if (ants_.size() < kMaxAnts) {
+                        ants_.push_back({nest_, AngleTo(nest_, mouse) + RandomFloat(-0.5f, 0.5f), 0.0f, false});
+                    }
+                }
+                score_ -= 20;
             }
         }
+
+        // Colony Drain (Harder each level)
+        colonyHealth_ -= deltaTime * (0.5f + (level_ * 0.2f));
+        if (colonyHealth_ <= 0) gameOver_ = true;
 
         UpdateAnts(deltaTime);
         UpdateTrails(deltaTime);
 
+        // Win Condition
         if (foodCollected_ >= targetFood_) {
-            experimentComplete_ = true;
-            BuildRecord();
-            LogRecord();
-            WriteRecordCsv();
+            levelComplete_ = true;
+            score_ += 100 * level_;
         }
-
-        const auto updateStop = std::chrono::steady_clock::now();
-        updateMs_.push_back(std::chrono::duration<float, std::milli>(updateStop - updateStart).count());
-        TrimSamples(updateMs_);
     }
 
     void draw() const override {
-        DrawWorld();
+        // Dirt background
+        DrawRectangle(0, 0, kSimWidth - kUiWidth, kHeight, Color{40, 35, 30, 255}); 
+
         DrawTrails();
+        DrawObstacles();
         DrawSites();
         DrawAnts();
-        DrawDiagnostics();
+        DrawUI();
+
+        // Game Overlays
+        if (gameOver_) {
+            DrawRectangle(0, 0, kSimWidth, kHeight, Fade(RED, 0.6f));
+            DrawText("COLONY STARVED!", kSimWidth/2 - 250, kHeight/2 - 50, 50, RAYWHITE);
+            DrawText(TextFormat("Final Score: %d | Level Reached: %d", score_, level_), kSimWidth/2 - 200, kHeight/2 + 20, 24, LIGHTGRAY);
+            DrawText("Press 'R' to Restart", kSimWidth/2 - 140, kHeight/2 + 60, 24, RAYWHITE);
+        } else if (levelComplete_) {
+            DrawRectangle(0, 0, kSimWidth, kHeight, Fade(GREEN, 0.4f));
+            DrawText(TextFormat("LEVEL %d COMPLETE!", level_), kSimWidth/2 - 220, kHeight/2 - 50, 50, RAYWHITE);
+            DrawText(TextFormat("Score +%d", 100 * level_), kSimWidth/2 - 70, kHeight/2 + 20, 24, GOLD);
+            DrawText("Press 'ENTER' to start next level", kSimWidth/2 - 200, kHeight/2 + 60, 24, RAYWHITE);
+        }
     }
 
 private:
-    void LoadFonts() {
-        uiFont_ = LoadFontEx("C:/Windows/Fonts/consola.ttf", 18, nullptr, 0);
-        titleFont_ = LoadFontEx("C:/Windows/Fonts/consolab.ttf", 24, nullptr, 0);
-        uiFontLoaded_ = uiFont_.texture.id != 0;
-        titleFontLoaded_ = titleFont_.texture.id != 0;
-
-        if (uiFontLoaded_) {
-            SetTextureFilter(uiFont_.texture, TEXTURE_FILTER_BILINEAR);
-        }
-        if (titleFontLoaded_) {
-            SetTextureFilter(titleFont_.texture, TEXTURE_FILTER_BILINEAR);
-        }
+    void SpawnFood() {
+        Vector2 pos;
+        // Don't spawn too close to nest
+        do {
+            pos = { RandomFloat(50, kSimWidth - kUiWidth - 50), RandomFloat(50, kHeight - 50) };
+        } while (Distance(pos, nest_) < 150.0f);
+        foodSources_.push_back({pos, GetRandomValue(50, 150), RandomFloat(15, 30)});
     }
 
-    void TrimSamples(std::vector<float>& samples) const {
-        constexpr int maxSamples = 120;
-        if (samples.size() > maxSamples) {
-            samples.erase(samples.begin(), samples.begin() + static_cast<int>(samples.size()) - maxSamples);
-        }
-    }
+    void UpdateAnts(float dt) {
+        for (auto& ant : ants_) {
+            Vector2 target = nest_;
+            float desired = ant.angle;
 
-    void UpdateAnts(float deltaTime) {
-        for (Ant& ant : ants_) {
-            const Vector2 oldPosition = ant.position;
-            const Vector2 target = ant.carryingFood ? nest_ : food_;
-            const float desired = AngleTo(ant.position, target);
-            const float steering = WrapRadians(desired - ant.angle);
-            const float targetWeight = ant.carryingFood ? 3.6f : 1.15f;
-            ant.angle += steering * targetWeight * deltaTime + RandomFloat(-kTurnNoise, kTurnNoise) * deltaTime;
+            if (ant.carryingFood) {
+                desired = AngleTo(ant.position, nest_);
+            } else {
+                // Look for closest food
+                int closestFoodIdx = -1;
+                float closestDist = 99999.0f;
+                
+                for (size_t i=0; i < foodSources_.size(); ++i) {
+                    float d = Distance(ant.position, foodSources_[i].position);
+                    if (d < foodSources_[i].radius + 60.0f && d < closestDist) {
+                        closestDist = d;
+                        closestFoodIdx = i;
+                    }
+                }
 
-            const Vector2 direction = Direction(ant.angle);
-            ant.position.x += direction.x * kAntSpeed * deltaTime;
-            ant.position.y += direction.y * kAntSpeed * deltaTime;
-
-            BounceAnt(ant);
-            ant.distance += Distance(oldPosition, ant.position);
-
-            if (!ant.carryingFood && Distance(ant.position, food_) <= kFoodRadius) {
-                ant.carryingFood = true;
-                if (firstFoodTime_ < 0.0f) {
-                    firstFoodTime_ = elapsed_;
+                if (closestFoodIdx != -1) {
+                    desired = AngleTo(ant.position, foodSources_[closestFoodIdx].position);
+                } else {
+                    // Follow trail
+                    float bestScore = -1.0f;
+                    for (const auto& trail : trails_) {
+                        if (!trail.foodTrail) continue; // Only follow food trails
+                        
+                        float d = Distance(ant.position, trail.position);
+                        if (d > 5.0f && d < 40.0f) {
+                            float angleToTrail = AngleTo(ant.position, trail.position);
+                            float angleDiff = fabsf(WrapRadians(angleToTrail - ant.angle));
+                            // Only look roughly forward
+                            if (angleDiff < kPi / 2.0f) {
+                                float s = trail.age / d;
+                                if (s > bestScore) {
+                                    bestScore = s;
+                                    desired = angleToTrail;
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            if (ant.carryingFood && Distance(ant.position, nest_) <= kNestRadius) {
-                ant.carryingFood = false;
-                ++foodCollected_;
+            // Obstacle Avoidance (Raycast-like)
+            for (const auto& obs : obstacles_) {
+                float d = Distance(ant.position, obs.position);
+                if (d < obs.radius + 15.0f) {
+                    float avoidAngle = AngleTo(obs.position, ant.position);
+                    desired = avoidAngle; // Run away from obstacle center
+                }
+            }
+
+            // Steering dynamics
+            float steering = WrapRadians(desired - ant.angle);
+            ant.angle += steering * 4.0f * dt;
+            ant.angle += RandomFloat(-kTurnNoise, kTurnNoise) * dt * 10.0f; // Random wander
+            ant.angle = WrapRadians(ant.angle);
+
+            Vector2 direction = Direction(ant.angle);
+            Vector2 oldPosition = ant.position;
+            ant.position.x += direction.x * kAntSpeed * dt;
+            ant.position.y += direction.y * kAntSpeed * dt;
+            ant.distance += Distance(oldPosition, ant.position);
+
+            BounceAnt(ant);
+
+            // Logic Interactions
+            if (ant.carryingFood) {
+                // Drop food at nest
+                if (Distance(ant.position, nest_) < kNestRadius) {
+                    ant.carryingFood = false;
+                    ant.angle += kPi; // Turn around
+                    foodCollected_++;
+                    score_ += 2;
+                    colonyHealth_ = std::min(100.0f, colonyHealth_ + 2.0f); // Heal colony
+                }
+            } else {
+                // Pick up food
+                for (auto it = foodSources_.begin(); it != foodSources_.end();) {
+                    if (Distance(ant.position, it->position) < it->radius) {
+                        ant.carryingFood = true;
+                        ant.angle += kPi;
+                        it->amount--;
+                        it->radius -= 0.1f; // Shrink food source
+                        
+                        if (it->amount <= 0) {
+                            it = foodSources_.erase(it);
+                            SpawnFood(); // Spawn new food elsewhere
+                        } else {
+                            ++it;
+                        }
+                        break; // Only pick up from one at a time
+                    } else {
+                        ++it;
+                    }
+                }
             }
 
             MaybeAddTrail(ant);
@@ -229,254 +320,156 @@ private:
     }
 
     void BounceAnt(Ant& ant) {
-        if (ant.position.x < 0.0f) {
-            ant.position.x = 0.0f;
-            ant.angle = kPi - ant.angle;
-        } else if (ant.position.x > kSimWidth) {
-            ant.position.x = static_cast<float>(kSimWidth);
-            ant.angle = kPi - ant.angle;
+        bool bounced = false;
+        const float rightEdge = kSimWidth - kUiWidth;
+        
+        if (ant.position.x < 5.0f) {
+            ant.position.x = 5.0f;
+            bounced = true;
+        } else if (ant.position.x > rightEdge - 5.0f) {
+            ant.position.x = rightEdge - 5.0f;
+            bounced = true;
         }
 
-        if (ant.position.y < 0.0f) {
-            ant.position.y = 0.0f;
-            ant.angle = -ant.angle;
-        } else if (ant.position.y > kHeight) {
-            ant.position.y = static_cast<float>(kHeight);
-            ant.angle = -ant.angle;
+        if (ant.position.y < 5.0f) {
+            ant.position.y = 5.0f;
+            bounced = true;
+        } else if (ant.position.y > kHeight - 5.0f) {
+            ant.position.y = kHeight - 5.0f;
+            bounced = true;
+        }
+
+        if (bounced) {
+            ant.angle = WrapRadians(ant.angle + kPi + RandomFloat(-0.5f, 0.5f));
         }
     }
 
     void MaybeAddTrail(const Ant& ant) {
-        if (GetRandomValue(0, 100) > 10) {
-            return;
-        }
-
-        if (trails_.size() >= kTrailCount) {
-            trails_.erase(trails_.begin());
-        }
-
-        trails_.push_back(Trail{ant.position, 0.0f, ant.carryingFood});
-    }
-
-    void UpdateTrails(float deltaTime) {
-        for (Trail& trail : trails_) {
-            trail.age += deltaTime;
-        }
-
-        trails_.erase(
-            std::remove_if(trails_.begin(), trails_.end(), [](const Trail& trail) {
-                return trail.age > kTrailLife;
-            }),
-            trails_.end());
-    }
-
-    void BuildRecord() {
-        record_.valid = true;
-        record_.timeTaken = elapsed_;
-        record_.frames = frameCount_;
-        record_.foodCollected = foodCollected_;
-        record_.totalAntDistance = 0.0f;
-
-        for (const Ant& ant : ants_) {
-            record_.totalAntDistance += ant.distance;
-        }
-
-        record_.averageAntDistance = record_.totalAntDistance / static_cast<float>(ants_.size());
-        record_.averageFrameMs = Average(frameMs_);
-        record_.averageUpdateMs = Average(updateMs_);
-    }
-
-    void LogRecord() {
-        if (eventLogged_ || !record_.valid) {
-            return;
-        }
-
-        TraceLog(
-            LOG_INFO,
-            "ANTS_TARGET_REACHED time=%.3fs frames=%d food=%d total_ant_distance=%.2fpx average_ant_distance=%.2fpx first_food_time=%.3fs avg_frame_ms=%.3f avg_update_ms=%.3f",
-            record_.timeTaken,
-            record_.frames,
-            record_.foodCollected,
-            record_.totalAntDistance,
-            record_.averageAntDistance,
-            firstFoodTime_,
-            record_.averageFrameMs,
-            record_.averageUpdateMs);
-        eventLogged_ = true;
-    }
-
-    void WriteRecordCsv() const {
-        if (!record_.valid) {
-            return;
-        }
-
-        std::ofstream file("ants_target_event.csv", std::ios::app);
-        if (!file) {
-            TraceLog(LOG_WARNING, "Could not write ants_target_event.csv");
-            return;
-        }
-
-        if (file.tellp() == 0) {
-            file << "event,time_taken_s,frames,food_collected,ant_count,nest_x,nest_y,food_x,food_y,total_ant_distance_px,average_ant_distance_px,first_food_time_s,avg_frame_ms,avg_update_ms\n";
-        }
-
-        file << "ANTS_TARGET_REACHED,"
-             << record_.timeTaken << ','
-             << record_.frames << ','
-             << record_.foodCollected << ','
-             << ants_.size() << ','
-             << nest_.x << ','
-             << nest_.y << ','
-             << food_.x << ','
-             << food_.y << ','
-             << record_.totalAntDistance << ','
-             << record_.averageAntDistance << ','
-             << firstFoodTime_ << ','
-             << record_.averageFrameMs << ','
-             << record_.averageUpdateMs
-             << '\n';
-    }
-
-    Rectangle ContinueButtonBounds() const {
-        return Rectangle{static_cast<float>(kSimWidth + 14), static_cast<float>(kHeight - 54), 138.0f, 36.0f};
-    }
-
-    void HandleContinueButton() {
-        const Rectangle bounds = ContinueButtonBounds();
-        if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && CheckCollisionPointRec(GetMousePosition(), bounds)) {
-            targetFood_ += kFoodBatch;
-            experimentComplete_ = false;
-            eventLogged_ = false;
+        if (GetRandomValue(0, 100) < 15) {
+            trails_.push_back({ant.position, kTrailLife, ant.carryingFood});
+            if (trails_.size() > kMaxTrails) {
+                trails_.erase(trails_.begin());
+            }
         }
     }
 
-    void DrawWorld() const {
-        DrawRectangle(0, 0, kSimWidth, kHeight, Color{18, 24, 22, 255});
+    void UpdateTrails(float dt) {
+        for (auto it = trails_.begin(); it != trails_.end();) {
+            it->age -= dt;
+            if (it->age <= 0.0f) {
+                it = trails_.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 
     void DrawTrails() const {
-        for (const Trail& trail : trails_) {
-            const float normalizedLife = std::clamp(1.0f - trail.age / kTrailLife, 0.0f, 1.0f);
-            const unsigned char alpha = static_cast<unsigned char>(normalizedLife * 150.0f);
-            const Color color = trail.foodTrail ? Color{230, 186, 73, alpha} : Color{96, 171, 126, alpha};
-            DrawCircleV(trail.position, 2.0f, color);
+        for (const auto& trail : trails_) {
+            float normalizedLife = trail.age / kTrailLife;
+            unsigned char alpha = static_cast<unsigned char>(normalizedLife * 180);
+            // Food trails are green/cyan, wander trails are faint purple
+            Color color = trail.foodTrail ? Color{100, 255, 150, alpha} : Color{180, 150, 200, alpha};
+            DrawPixelV(trail.position, color);
+        }
+    }
+
+    void DrawObstacles() const {
+        for (const auto& obs : obstacles_) {
+            DrawCircleV(obs.position, obs.radius, Color{60, 60, 65, 255}); // Dark rock color
+            DrawCircleLines((int)obs.position.x, (int)obs.position.y, obs.radius, BLACK);
+            // Inner detail
+            DrawCircleV({obs.position.x - 2, obs.position.y - 2}, obs.radius * 0.7f, Color{70, 70, 75, 255}); 
         }
     }
 
     void DrawSites() const {
-        DrawCircleV(nest_, kNestRadius, Color{84, 150, 94, 255});
-        DrawCircleV(food_, kFoodRadius, Color{226, 190, 75, 255});
-        DrawCircleLines(static_cast<int>(nest_.x), static_cast<int>(nest_.y), kNestRadius + 5.0f, Color{147, 211, 153, 255});
-        DrawCircleLines(static_cast<int>(food_.x), static_cast<int>(food_.y), kFoodRadius + 5.0f, Color{240, 217, 117, 255});
+        // Nest Hole
+        DrawCircleV(nest_, kNestRadius, Color{100, 50, 20, 255}); // Brown mound
+        DrawCircleV(nest_, kNestRadius * 0.5f, BLACK); // Deep hole
+
+        // Food Sources
+        for (const auto& food : foodSources_) {
+            DrawCircleV(food.position, food.radius, Color{50, 200, 50, 255}); // Green leaf/food
+            DrawCircleLines((int)food.position.x, (int)food.position.y, food.radius, DARKGREEN);
+        }
     }
 
     void DrawAnts() const {
-        for (const Ant& ant : ants_) {
-            const Vector2 direction = Direction(ant.angle);
-            const Vector2 nose{ant.position.x + direction.x * 6.0f, ant.position.y + direction.y * 6.0f};
-            const Color color = ant.carryingFood ? Color{248, 212, 86, 255} : Color{190, 207, 222, 255};
-            DrawCircleV(ant.position, 2.6f, color);
-            DrawLineV(ant.position, nose, color);
+        for (const auto& ant : ants_) {
+            Vector2 direction = Direction(ant.angle);
+            Vector2 nose = {ant.position.x + direction.x * 5.0f, ant.position.y + direction.y * 5.0f};
+            
+            // Ant Body
+            DrawLineEx(ant.position, nose, 2.0f, BLACK);
+            DrawPixelV(ant.position, BLACK);
+            
+            // Carrying food visual
+            if (ant.carryingFood) {
+                DrawCircleV({nose.x + direction.x * 2.0f, nose.y + direction.y * 2.0f}, 2.5f, GREEN);
+            }
         }
     }
 
-    void DrawMono(int x, int y, const char* text, float fontSize = 15.0f, Color color = Color{210, 210, 210, 255}) const {
-        if (uiFontLoaded_) {
-            DrawTextEx(uiFont_, text, Vector2{static_cast<float>(x), static_cast<float>(y)}, fontSize, 1.0f, color);
-        } else {
-            DrawText(text, x, y, static_cast<int>(fontSize), color);
-        }
+    void DrawUI() const {
+        const int panelX = kSimWidth - kUiWidth;
+        DrawRectangle(panelX, 0, kUiWidth, kHeight, Color{25, 28, 35, 255});
+        DrawLine(panelX, 0, panelX, kHeight, Color{60, 65, 75, 255});
+
+        int y = 20;
+        DrawText("COLONY DEFENDER", panelX + 20, y, 22, RAYWHITE); y += 40;
+        
+        DrawText(TextFormat("LEVEL %d", level_), panelX + 20, y, 24, GOLD); y += 30;
+        DrawText(TextFormat("SCORE: %d", score_), panelX + 20, y, 20, RAYWHITE); y += 40;
+
+        // Health Bar
+        DrawText("COLONY HEALTH", panelX + 20, y, 14, LIGHTGRAY); y += 20;
+        DrawRectangle(panelX + 20, y, 240, 15, DARKGRAY);
+        DrawRectangle(panelX + 20, y, (int)(240 * (colonyHealth_/100.0f)), 15, colonyHealth_ > 30 ? GREEN : RED); y += 35;
+
+        // Food Target Bar
+        DrawText("FOOD TARGET (LEVEL UP)", panelX + 20, y, 14, LIGHTGRAY); y += 20;
+        float progress = std::min(1.0f, (float)foodCollected_ / targetFood_);
+        DrawRectangle(panelX + 20, y, 240, 15, DARKGRAY);
+        DrawRectangle(panelX + 20, y, (int)(240 * progress), 15, SKYBLUE);
+        DrawText(TextFormat("%d / %d", foodCollected_, targetFood_), panelX + 20, y + 20, 14, RAYWHITE); y += 60;
+
+        // Abilities
+        DrawText("ABILITIES (Costs Score)", panelX + 20, y, 16, GOLD); y += 30;
+        
+        Color c0 = gameMode_ == 0 ? YELLOW : GRAY;
+        DrawText("[1] Drop Food (Cost 10)", panelX + 20, y, 16, c0); y += 25;
+        
+        Color c1 = gameMode_ == 1 ? YELLOW : GRAY;
+        DrawText("[2] Drop Rock (Cost 5)", panelX + 20, y, 16, c1); y += 25;
+        
+        Color c2 = gameMode_ == 2 ? YELLOW : GRAY;
+        DrawText("[3] Spawn 10 Ants (Cost 20)", panelX + 20, y, 16, c2); y += 50;
+
+        // Instructions
+        DrawText("Controls:", panelX + 20, y, 14, LIGHTGRAY); y += 20;
+        DrawText("1, 2, 3: Select Ability", panelX + 20, y, 14, GRAY); y += 20;
+        DrawText("Left Click: Use Ability in Dirt", panelX + 20, y, 14, GRAY); y += 20;
+        DrawText("R: Restart Game", panelX + 20, y, 14, GRAY); y += 30;
+        
+        DrawText(TextFormat("Active Ants: %d", (int)ants_.size()), panelX + 20, kHeight - 30, 14, GRAY);
     }
 
-    void DrawTitle(int x, int y, const char* text) const {
-        if (titleFontLoaded_) {
-            DrawTextEx(titleFont_, text, Vector2{static_cast<float>(x), static_cast<float>(y)}, 20.0f, 2.0f, RAYWHITE);
-        } else {
-            DrawText(text, x, y, 18, RAYWHITE);
-        }
-    }
-
-    void DrawDiagnostics() const {
-        const int panelX = kSimWidth;
-        const int x = panelX + 14;
-        int y = 16;
-        const float fps = Average(frameMs_) > 0.0f ? 1000.0f / Average(frameMs_) : 0.0f;
-        const float progress = static_cast<float>(foodCollected_) / static_cast<float>(targetFood_);
-
-        DrawRectangle(panelX, 0, kUiWidth, kHeight, Color{12, 12, 16, 255});
-        DrawLineEx(Vector2{static_cast<float>(panelX), 0.0f}, Vector2{static_cast<float>(panelX), static_cast<float>(kHeight)}, 2.0f, Color{90, 90, 100, 255});
-        DrawTitle(x, y, "ANT DIAGNOSTICS");
-        y += 34;
-
-        DrawMono(x, y, TextFormat("Status: %s", experimentComplete_ ? "TARGET_REACHED" : "RUNNING"), 15.0f, experimentComplete_ ? Color{84, 231, 166, 255} : Color{235, 235, 240, 255}); y += 22;
-        DrawMono(x, y, TextFormat("Time: %7.2f s", elapsed_)); y += 18;
-        DrawMono(x, y, TextFormat("FPS: %6.2f", fps)); y += 18;
-        DrawMono(x, y, TextFormat("Frame avg: %7.3f ms", Average(frameMs_))); y += 18;
-        DrawMono(x, y, TextFormat("Update avg:%7.3f ms", Average(updateMs_))); y += 26;
-
-        DrawMono(x, y, TextFormat("Ants: %d", static_cast<int>(ants_.size()))); y += 18;
-        DrawMono(x, y, TextFormat("Food: %d / %d", foodCollected_, targetFood_)); y += 18;
-        DrawMono(x, y, TextFormat("Progress: %6.2f %%", progress * 100.0f)); y += 18;
-        DrawMono(x, y, TextFormat("First food: %7.2f s", firstFoodTime_ < 0.0f ? 0.0f : firstFoodTime_)); y += 18;
-        DrawMono(x, y, TextFormat("Trail points: %d", static_cast<int>(trails_.size()))); y += 26;
-
-        const float totalDistance = TotalAntDistance();
-        DrawMono(x, y, TextFormat("Total distance: %8.1f", totalDistance)); y += 18;
-        DrawMono(x, y, TextFormat("Avg ant dist:  %8.1f", totalDistance / static_cast<float>(ants_.size()))); y += 26;
-
-        if (record_.valid) {
-            DrawMono(x, y, "EVENT RECORD", 15.0f, Color{84, 231, 166, 255}); y += 20;
-            DrawMono(x, y, TextFormat("time_taken: %7.3f s", record_.timeTaken)); y += 18;
-            DrawMono(x, y, TextFormat("food:       %7d", record_.foodCollected)); y += 18;
-            DrawMono(x, y, TextFormat("avg_dist:   %7.1f", record_.averageAntDistance)); y += 18;
-            DrawMono(x, y, "saved: ants_target_event.csv"); y += 18;
-            DrawContinueButton();
-        } else {
-            DrawMono(x, y, "Controls:", 15.0f, Color{235, 235, 240, 255}); y += 18;
-            DrawMono(x, y, "LMB: move food target"); y += 18;
-            DrawMono(x, y, "R: reset"); y += 18;
-            DrawMono(x, y, "ESC: quit/menu");
-        }
-    }
-
-    void DrawContinueButton() const {
-        if (!experimentComplete_) {
-            return;
-        }
-
-        const Rectangle bounds = ContinueButtonBounds();
-        const bool hovered = CheckCollisionPointRec(GetMousePosition(), bounds);
-        DrawRectangleRec(bounds, hovered ? Color{112, 205, 154, 255} : Color{84, 181, 130, 255});
-        DrawRectangleLinesEx(bounds, 1.0f, Color{177, 239, 198, 255});
-        DrawMono(static_cast<int>(bounds.x + 26.0f), static_cast<int>(bounds.y + 9.0f), "Continue", 15.0f, Color{8, 16, 12, 255});
-    }
-
-    float TotalAntDistance() const {
-        float total = 0.0f;
-        for (const Ant& ant : ants_) {
-            total += ant.distance;
-        }
-        return total;
-    }
-
-    Vector2 nest_{};
-    Vector2 food_{};
+    Vector2 nest_;
     std::vector<Ant> ants_;
     std::vector<Trail> trails_;
-    std::vector<float> frameMs_;
-    std::vector<float> updateMs_;
-    Font uiFont_{};
-    Font titleFont_{};
-    bool uiFontLoaded_ = false;
-    bool titleFontLoaded_ = false;
-    bool experimentComplete_ = false;
-    bool eventLogged_ = false;
+    std::vector<FoodSource> foodSources_;
+    std::vector<Obstacle> obstacles_;
+
+    int level_ = 1;
+    int score_ = 50;
     int foodCollected_ = 0;
-    int frameCount_ = 0;
-    int targetFood_ = kFoodBatch;
-    float elapsed_ = 0.0f;
-    float firstFoodTime_ = -1.0f;
-    AntRecord record_;
+    int targetFood_;
+    float colonyHealth_;
+    
+    int gameMode_ = 0;
+    bool gameOver_ = false;
+    bool levelComplete_ = false;
 };
 
 }  // namespace
