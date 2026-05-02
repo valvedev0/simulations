@@ -18,6 +18,7 @@ src/
     ants.cpp           Colony Defender game with resource management and abilities
     fluid.cpp          Interactive particle-based fluid simulation
     birds.cpp          Bird flocking with weather and predator logic
+    racing.cpp         3D open world racing game with player vs AI
     rocket.cpp         Rocket landing game with PID-controlled descent
     galaxy.cpp         High-performance 50,000+ particle simulator using rlgl
     synth.cpp          Real-time audio synthesizer and sequencer with piano keyboard
@@ -118,6 +119,11 @@ Flight controls:
 - `Left Mouse Button`: Attract particles
 - `Right Mouse Button`: Repel particles
 - `R`: Reset fluid particles
+
+### 3D Open World Racing
+- `W` / `S` or `Up` / `Down`: Accelerate and Brake/Reverse
+- `A` / `D` or `Left` / `Right`: Steer
+- `R`: Restart the race
 
 ### High-Performance Galaxy
 - `Left Mouse Button (Hold)`: Drag the central black hole

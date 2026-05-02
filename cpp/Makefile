@@ -20,7 +20,7 @@ else
 endif
 
 LAUNCHER_TARGET := build/simulations$(EXE_EXT)
-SIM_IDS := flight ants fluid birds rocket galaxy synth
+SIM_IDS := flight ants fluid birds rocket galaxy synth racing
 SIM_TARGETS := $(addprefix build/sims/,$(addsuffix $(EXE_EXT),$(SIM_IDS)))
 STANDALONE_OBJECTS := $(addprefix build/obj/standalone/,$(addsuffix .o,$(SIM_IDS)))
 
@@ -30,7 +30,7 @@ COMMON_SOURCES := $(sort $(COMMON_SOURCES))
 COMMON_OBJECTS := $(patsubst %.cpp,build/obj/%.o,$(COMMON_SOURCES))
 LAUNCHER_OBJECTS := build/obj/src/main.o $(COMMON_OBJECTS)
 
-.PHONY: all clean list run run-flight run-ants run-fluid
+.PHONY: all clean list run run-flight run-ants run-fluid run-racing
 .SECONDARY: $(STANDALONE_OBJECTS)
 
 all: $(LAUNCHER_TARGET) $(SIM_TARGETS)
@@ -50,6 +50,9 @@ run-ants: build/sims/ants$(EXE_EXT)
 
 run-fluid: build/sims/fluid$(EXE_EXT)
 	build/sims/fluid$(EXE_EXT)
+
+run-racing: build/sims/racing$(EXE_EXT)
+	build/sims/racing$(EXE_EXT)
 
 $(LAUNCHER_TARGET): $(LAUNCHER_OBJECTS)
 	@mkdir -p "$(@D)"
